@@ -70,7 +70,7 @@ int matchstar(int, char*, char*);
 int
 match(char *re, char *text)
 {
-  if(re[0] == '^')
+  if(re[0] == '^') // ^ 匹配输入字符串的开始位置，除非在方括号表达式中使用，此时它表示不接受该字符集合
     return matchhere(re+1, text);
   do{  // must look at empty string
     if(matchhere(re, text))
@@ -84,11 +84,11 @@ int matchhere(char *re, char *text)
 {
   if(re[0] == '\0')
     return 1;
-  if(re[1] == '*')
+  if(re[1] == '*') // * 匹配前面的子表达式零次或多次
     return matchstar(re[0], re+2, text);
-  if(re[0] == '$' && re[1] == '\0')
+  if(re[0] == '$' && re[1] == '\0') // $ 匹配输入字符串的结尾位置
     return *text == '\0';
-  if(*text!='\0' && (re[0]=='.' || re[0]==*text))
+  if(*text!='\0' && (re[0]=='.' || re[0]==*text)) // . 匹配除换行符\n之外的任何单字符
     return matchhere(re+1, text+1);
   return 0;
 }

@@ -10,15 +10,15 @@ fmtname(char *path)
   char *p;
 
   // Find first character after last slash.
-  for(p=path+strlen(path); p >= path && *p != '/'; p--)
+  for(p=path+strlen(path); p >= path && *p != '/'; p--) // a/filename\0
     ;
-  p++;
+  p++; // a/(p)filename\0
 
   // Return blank-padded name.
   if(strlen(p) >= DIRSIZ)
     return p;
-  memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+  memmove(buf, p, strlen(p)); // filename\0 覆盖原buf
+  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p)); // 后面补充空格
   return buf;
 }
 
