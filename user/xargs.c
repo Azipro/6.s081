@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // for(int i = 0 ; i < paramSize + 1 ; ++ i) free(param[i]);
+    for(int i = 0 ; i < paramSize + 1 ; ++ i) free(param[i]);
 
     exit(0);
 }
