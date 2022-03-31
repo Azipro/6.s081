@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sysinfo.h"
 
 struct cpu cpus[NCPU];
 
@@ -294,10 +295,40 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
+  np->tracemask = p->tracemask; // trace子进程
 
   release(&np->lock);
 
   return pid;
+}
+
+int
+trace(int mask){
+  struct proc *p = myproc();
+  p->tracemask = mask;
+  return 0;
+}
+
+int
+sysinfo(uint64 addr){
+  struct proc *p = myproc();
+  struct sysinfo si;
+  uint64 nproc = 0, freemem = freesize();
+  
+  for(int i = 0 ; i < NPROC ; ++ i){
+    acquire(&proc[i].lock);
+    if(proc[i].state != UNUSED){
+      ++ nproc;
+    }
+    release(&proc[i].lock);
+  }
+  si.freemem = freemem;
+  si.nproc = nproc;
+  
+  if(copyout(p->pagetable, addr, (char *)&si, sizeof(si)) < 0)
+      return -1;
+
+  return 0;
 }
 
 // Pass p's abandoned children to init.
