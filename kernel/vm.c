@@ -467,7 +467,9 @@ int copyinstr_new(pagetable_t, char *, uint64, uint64);
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  // 此时直接使用va。（MMU里是进程内核页表，进行翻译之后得到正确物理地址）
   return copyin_new(pagetable, dst, srcva, len);
+  // 此时通过va先找到pa，然后直接使用内核页表中的pa，经MMU翻译之后仍为pa（因为用户进程使用的free memory使用了直接映射）
   // uint64 n, va0, pa0;
 
   // while(len > 0){
