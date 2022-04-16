@@ -127,6 +127,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->ticks_passed = 0;
+
   return p;
 }
 
@@ -696,4 +698,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64 sigalarm(int n, void(* handle)()){
+  struct proc *p = myproc();
+  p->alarm_interval = n;
+  p->alarm_handle = handle;
+
+  return 0;
+}
+
+uint64 sigreturn(){
+
+
+  return 0;
 }
