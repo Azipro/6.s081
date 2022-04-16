@@ -113,6 +113,11 @@ found:
     return 0;
   }
 
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){ // TODO: 释放
+    release(&p->lock);
+    return 0;
+  }
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -128,6 +133,9 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   p->ticks_passed = 0;
+  p->alarm_interval = 0;
+  p->alarm_handle = 0;
+  p->exist_alarm = 0;
 
   return p;
 }
@@ -140,6 +148,8 @@ freeproc(struct proc *p)
 {
   if(p->trapframe)
     kfree((void*)p->trapframe);
+  if(p->alarm_trapframe)
+    kfree((void*)p->alarm_trapframe);
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -152,6 +162,12 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  
+  p->ticks_passed = 0;
+  p->alarm_interval = 0;
+  p->alarm_handle = 0;
+  p->exist_alarm = 0;
+  p->alarm_trapframe = 0;
 }
 
 // Create a user page table for a given process,
@@ -704,12 +720,14 @@ uint64 sigalarm(int n, void(* handle)()){
   struct proc *p = myproc();
   p->alarm_interval = n;
   p->alarm_handle = handle;
-
+  p->ticks_passed = 0;
+  p->exist_alarm = 0;
   return 0;
 }
 
 uint64 sigreturn(){
-
-
+  struct proc *p = myproc();
+  *p->trapframe = *p->alarm_trapframe;
+  p->exist_alarm = 0; // 1：禁止同时执行alarm
   return 0;
 }

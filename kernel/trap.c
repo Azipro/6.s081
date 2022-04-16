@@ -68,7 +68,15 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
     if(which_dev == 2){
-      
+      if(p->alarm_interval > 0){
+        if(++ (p->ticks_passed) >= p->alarm_interval){
+          if(p->exist_alarm == 0){ // 同时只运行一个时钟处理函数
+            *p->alarm_trapframe = *p->trapframe;
+            p->exist_alarm = 1;
+            p->trapframe->epc = (uint64)p->alarm_handle;
+          }
+        }
+      }
     }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
