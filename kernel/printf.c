@@ -132,3 +132,13 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void backtrace(void){
+  uint64 fp = r_fp();
+  printf("backtrace:\n");
+  while (fp != PGROUNDUP(fp)){
+    uint64 sp = *(uint64 *)(fp - 8); // 返回地址
+    printf("%p\n", sp);
+    fp = *(uint64 *)(fp - 16); // 上一个栈帧的开始地址
+  }
+}
