@@ -351,7 +351,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     *pte |= PTE_W;
     *pte &= ~PTE_RSW;
-    pa = PTE2PA(*pte);
   }
   uvmunmap(new, 0, i / PGSIZE, 1); // 所有被new引用过的页面引用数-1
   return -1;
