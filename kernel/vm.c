@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -106,6 +108,14 @@ walkaddr(pagetable_t pagetable, uint64 va)
   if((*pte & PTE_V) == 0)
     return 0;
   if((*pte & PTE_U) == 0)
+    return 0;
+  if((*pte & PTE_RSW) != 0){
+    if(cowcheckandalloc(myproc(), va) == 0){
+      return 0;
+    }
+  }
+  pte = walk(pagetable, va, 0);
+  if(pte == 0)
     return 0;
   pa = PTE2PA(*pte);
   return pa;
@@ -311,7 +321,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -319,19 +329,31 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    *pte &= ~PTE_W; // 禁用写权限
+    *pte |= PTE_RSW; // 标记为cow page
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE); 
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
+    kcountadd(pa); // 引用数+1
   }
   return 0;
 
  err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  // uvmunmap(new, 0, i / PGSIZE, 1);
+  for(int j = 0 ; j < i ; j += PGSIZE){
+    if((pte = walk(old, j, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    *pte |= PTE_W;
+    *pte &= ~PTE_RSW;
+    pa = PTE2PA(*pte);
+  }
+  uvmunmap(new, 0, i / PGSIZE, 1); // 所有被new引用过的页面引用数-1
   return -1;
 }
 
@@ -439,4 +461,65 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int cowcheckandalloc(struct proc *p, uint64 va){
+  pte_t *pte;
+  char *mem;
+  uint64 pa;
+  uint flags;
+  
+  if(va > p->sz){ // 大于p->sz的地址造成page fault，都是非法的地址
+    printf("invalid addr: %d\n", va);
+    return 0;
+  }
+  if((pte = walk(p->pagetable, va, 0)) == 0){
+    printf("cowcheckandalloc: pte should exist\n");
+    return 0;
+  }
+  if((*pte & PTE_V) == 0){
+    printf("cowcheckandalloc: page not present\n");
+    return 0;
+  }
+  if((*pte & PTE_RSW) == 0){
+    printf("cowcheckandalloc: should be cow page\n");
+    return 0;
+  }
+  if((*pte & PTE_W) != 0){
+    printf("cowcheckandalloc: already can write\n");
+    return 0;
+  }
+  pa = PTE2PA(*pte);
+  // 如果此时引用计数为1，直接使用该页面进行读写
+  /** 
+   * 这里没有考虑如果父子进程其中一个已经exit了，引用数-1的问题。原因如下：（所有进程exit时，不会直接清理内存，而是标记为zombie，见proc.h/exit()）
+   * 如果父进程（没有使用wait）先结束，会将子进程的parent更改为祖先进程（shell），祖先进程会不停扫描其状态为zombie的子进程()进行清理
+   * 如果父进程（使用wait）先结束，会不停扫描其状态为zombie的子进程()进行清理。多次fork，以此类推
+   * 如果子进程先结束（父进程没有使用wait），子进程会等到父进程结束之后将其的parent标记成祖先进程，再由祖先进程进行清理
+   * 如果子进程先结束（父进程使用wait），子进程直接被父进程清理
+   * 
+   * 可能出现，其中一个进程结束之后还没有被清理，这时候占有一个引用数，其他进程想进行写操作时，重新分配了一个页面（应该是可以直接使用当前页面的）。有一段时间会浪费掉一部分内存。
+  **/
+  acquirekmemclock();
+  if(kcountall(pa) == 1){
+    *pte |= PTE_W;
+    *pte &= ~PTE_RSW;
+    releasekmemclock();
+    return 1;
+  }
+  releasekmemclock();
+  
+  flags = PTE_FLAGS(*pte);
+  flags |= PTE_W; // 打开写权限
+  flags &= ~PTE_RSW; // 删除cow标记
+  if((mem = kalloc()) == 0){
+    printf("oom!\n");
+    return 0;
+  }
+  memmove(mem, (char *)pa, PGSIZE);
+  uvmunmap(p->pagetable, va, 1, 1); // 取消原来的映射,引用计数-1
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0){
+    return 0;
+  }
+  return 1;
 }

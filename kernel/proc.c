@@ -263,12 +263,12 @@ fork(void)
   struct proc *p = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc()) == 0){ // page table映射了trampoline和trapframe两个pages，以及设置了必要的参数。不需要cow这两个page
     return -1;
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){ // 不实际拷贝。 TODO：指向父进程的物理空间，~PTE_W
     freeproc(np);
     release(&np->lock);
     return -1;

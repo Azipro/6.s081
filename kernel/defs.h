@@ -63,6 +63,11 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            kcountsub(uint64);
+void            kcountadd(uint64);
+int             kcountall(uint64);
+void            acquirekmemclock();
+void            releasekmemclock();
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -171,6 +176,7 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+int             cowcheckandalloc(struct proc *, uint64);
 
 // plic.c
 void            plicinit(void);
