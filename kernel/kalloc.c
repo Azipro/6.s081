@@ -82,6 +82,7 @@ kalloc(void)
 }
 
 uint64 freesize(){
+  acquire(&kmem.lock);
   struct run *p = kmem.freelist;
   int cnt = 0;
 
@@ -89,6 +90,6 @@ uint64 freesize(){
     ++ cnt;
     p = p->next;
   }
-
+  release(&kmem.lock);
   return cnt * PGSIZE;
 }
