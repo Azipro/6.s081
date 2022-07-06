@@ -54,6 +54,7 @@ exec(char *path, char **argv)
     sz = sz1;
     // 用户页表的大小不能超过这个地址，超过的话，内核页表的低地址就不够用来同步映射用户页表
     // PGSIZE * 2是用户页表的栈空间
+    // 其实不够严谨，因为后续用户使用了malloc(sbrk)堆空间的话，也要映射到内核页表的。
     if(sz >= PLIC - PGSIZE * 2)
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
